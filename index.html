@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Gold vs Markets</title>
+  <meta name="description" content="Backtest random, monthly or lump-sum investing in gold, silver, Bitcoin and stock indexes from 2014, in your own currency.">
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#101318" media="(prefers-color-scheme: dark)">
+  <meta property="og:title" content="Gold vs Markets">
+  <meta property="og:description" content="What if you had bought gold, Bitcoin or the S&P 500 at random since 2014? Run the backtest in your own currency.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-in">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="18" width="6" height="10" rx="1.5" fill="var(--gold)"/><rect x="13" y="11" width="6" height="17" rx="1.5" fill="var(--c2)"/><rect x="23" y="4" width="6" height="24" rx="1.5" fill="var(--c3)"/></svg>
+        <span>Gold vs Markets</span>
+      </div>
+      <button class="ghost small" id="shareBtn" type="button">Copy link</button>
+    </div>
+  </header>
+
+  <main class="wrap layout">
+    <section class="intro">
+      <h1>What if you had kept buying since 2010?</h1>
+      <p class="lede">Pick the assets, your currency and how you would have bought. The same purchases go into every asset at the same dates and amounts, so the only difference is what the money bought. Every result is also checked against inflation, the bar any investment has to clear just to keep its value.</p>
+    </section>
+
+    <aside class="settings panel" aria-label="Settings">
+      <details id="settingsBox" open>
+        <summary><span>Settings</span><span class="sum-hint" id="settingsHint"></span></summary>
+        <div class="set-grid">
+          <div class="field">
+            <label for="cur">Currency</label>
+            <select id="cur"></select>
+          </div>
+          <div class="field two">
+            <div><label for="startM">From</label><select id="startM"></select></div>
+            <div><label for="endM">To</label><select id="endM"></select></div>
+          </div>
+
+          <fieldset class="field">
+            <legend>How you buy</legend>
+            <div class="seg" role="radiogroup" aria-label="Buying style">
+              <label><input type="radio" name="mode" value="random" checked><span>Random</span></label>
+              <label><input type="radio" name="mode" value="monthly"><span>Every month</span></label>
+              <label><input type="radio" name="mode" value="lump"><span>Lump sum</span></label>
+            </div>
+          </fieldset>
+
+          <div class="field mode-random">
+            <label for="freq">Chance of buying in a month <b class="val" id="freqV">60%</b></label>
+            <input id="freq" type="range" min="10" max="100" step="5" value="60">
+          </div>
+          <div class="field two mode-random">
+            <div><label for="minA">Smallest buy</label><input id="minA" type="number" inputmode="decimal" min="1" step="any" value="100"></div>
+            <div><label for="maxA">Largest buy</label><input id="maxA" type="number" inputmode="decimal" min="1" step="any" value="2000"></div>
+          </div>
+          <div class="field" id="inflField" hidden>
+            <label for="infl">Inflation in this currency, % a year</label>
+            <input id="infl" type="number" inputmode="decimal" step="0.1" value="2.5">
+            <p class="hint">US dollar results use the actual monthly US CPI. For other currencies this is an approximate 2010–2025 average; change it if you know better.</p>
+          </div>
+          <div class="field mode-monthly mode-lump" hidden>
+            <label for="amt" id="amtLabel">Amount each month</label>
+            <input id="amt" type="number" inputmode="decimal" min="1" step="any" value="500">
+          </div>
+
+          <fieldset class="field">
+            <legend>Assets <button type="button" class="link" id="allBtn">All</button> <button type="button" class="link" id="noneBtn">None</button></legend>
+            <div class="chips" id="assetChips"></div>
+            <p class="warn" id="startWarn" hidden></p>
+          </fieldset>
+
+          <div class="field custom">
+            <details id="customBox">
+              <summary>Add your own stock or fund</summary>
+              <div class="inner">
+                <p class="hint">Invest in what you know. Paste month-end prices in US dollars, one per line as <code>YYYY-MM,price</code> (adjusted close works best). It stays in this browser only.</p>
+                <input id="cName" type="text" placeholder="Name, e.g. Pfizer" maxlength="24" aria-label="Asset name">
+                <textarea id="cData" placeholder="2010-01,18.20&#10;2010-02,17.95&#10;…" aria-label="Monthly prices"></textarea>
+                <button type="button" class="ghost small" id="cAdd">Add to comparison</button>
+                <p class="hint" id="cMsg" aria-live="polite"></p>
+              </div>
+            </details>
+          </div>
+
+          <div class="actions">
+            <button type="button" id="runBtn" class="mode-random">New random investor</button>
+            <span class="seed mode-random" id="seedL"></span>
+          </div>
+        </div>
+      </details>
+    </aside>
+
+    <section class="results">
+      <div class="panel">
+        <div class="head-row">
+          <h2>Leaderboard</h2>
+          <p class="sub" id="runSum"></p>
+        </div>
+        <ol class="board" id="board"></ol>
+      </div>
+
+      <div class="panel">
+        <div class="head-row">
+          <h2>Portfolio value over time</h2>
+          <label class="check"><input id="logS" type="checkbox" checked> Log scale</label>
+        </div>
+        <p class="sub">Market value of everything bought so far, against the cash put in. Tap a name to hide or show it.</p>
+        <div class="legend" id="legend"></div>
+        <div class="chart" id="chart"></div>
+      </div>
+
+      <div class="panel mode-random" id="distPanel">
+        <h2>1,000 random investors</h2>
+        <p class="sub">Annual return (money-weighted XIRR) across 1,000 random buying schedules with your settings. Thin bar: 5th to 95th percentile. Thick bar: middle half. Tick: median.</p>
+        <div class="dist" id="dist"><p class="sub">Running…</p></div>
+        <div class="axis" id="axis"></div>
+      </div>
+
+      <div class="panel">
+        <details>
+          <summary>Every purchase <span class="sub" id="ledgerCount"></span></summary>
+          <div class="tbl"><table id="ledger"></table></div>
+        </details>
+      </div>
+
+      <section class="notes">
+        <h2>How it works</h2>
+        <ul>
+          <li><b>Prices</b> are month-end, dividend-adjusted (total return) prices of US-listed ETFs an ordinary investor could buy, so dividends are reinvested and fund fees are already taken out. Bitcoin is the spot price. Data runs from <span id="dataStart"></span> to <span id="dataEnd"></span>.</li>
+          <li><b>Each purchase</b> happens on a random day: its price is interpolated between the previous and current month-end. "Every month" buys mid-month. "Lump sum" invests everything on the first day of the start month.</li>
+          <li><b>Inflation</b>: "After inflation" is the money-weighted return once each purchase is restated in end-date money. The dashed red line is what your cash would have needed to grow to just to keep its buying power. US dollars use the US CPI; other currencies use the yearly rate in Settings.</li>
+          <li><b>Bitcoin before 2013</b> traded on tiny, unreliable exchanges. Prices from 2010 are real but almost nobody could have bought meaningful amounts, so early-start Bitcoin results are an upper bound, not a realistic outcome.</li>
+          <li><b>Currencies</b>: prices are converted from US dollars at each month's exchange rate, so a non-US investor sees currency moves too. Exchange rates are monthly averages from the US Federal Reserve.</li>
+          <li><b>Index proxies</b>: FTSE uses EWU (MSCI UK), Swiss uses EWL (MSCI Switzerland), Sweden uses EWD (MSCI Sweden), Nifty 50 uses INDY, US small caps use IWM (Russell 2000). They track their markets closely but are not the exact local index.</li>
+          <li><b>Not included</b>: personal taxes, brokerage fees, spreads and the cost of holding cash.</li>
+          <li>Past returns say little about the future. This is a history lesson, not financial advice.</li>
+        </ul>
+        <p class="foot">Data last updated <span id="dataUpd"></span>.<span id="repoWrap" hidden> <a href="#" id="repoLink" rel="noopener">Source code</a>.</span></p>
+      </section>
+    </section>
+  </main>
+
+  <script src="assets/app.js" type="module"></script>
+</body>
+</html>
