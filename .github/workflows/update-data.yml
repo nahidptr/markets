@@ -2,29 +2,41 @@ name: Update price data
 
 on:
   schedule:
-    - cron: "17 6 3 * *"   # 06:17 UTC on the 3rd of every month
+    # 06:17 UTC on the 2nd, 5th and 10th of every month: the first run normally does the work,
+    # the later ones retry if Yahoo was down. Each run is a no-op when nothing changed.
+    - cron: "17 6 2,5,10 * *"
   workflow_dispatch: {}
 
 permissions:
   contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-      - run: pip install -r scripts/requirements.txt
-      - run: python scripts/update_data.py
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Download new prices
+        run: npm run update-data
+      - name: Test the new data
+        run: npm test
       - name: Commit if changed
         run: |
-          if git diff --quiet -- data/prices.json; then
+          if git diff --quiet -- public/data/prices.json; then
             echo "No changes"; exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add data/prices.json
-          git commit -m "Update price data ($(date -u +%Y-%m))"
+          git add public/data/prices.json
+          git commit -m "Update price data to $(node -p "require('./public/data/prices.json').end")"
           git push
+      - name: Fail if data is still stale
+        run: npm run check-data
