@@ -16,19 +16,23 @@ const DESKTOP = matchMedia('(min-width: 1024px)');
 const INFL_DEFAULT = {
   USD: 2.7, EUR: 2.2, GBP: 2.9, CHF: 0.4, SEK: 1.9, INR: 6.2, AUD: 2.7, TWD: 1.3, JPY: 0.9, CAD: 2.5,
   SGD: 2.2, NOK: 2.7, DKK: 1.8, CNY: 2.0, HKD: 2.4, KRW: 2.2, NZD: 2.6, ZAR: 5.3, MXN: 4.4, BRL: 6.0, THB: 1.4, MYR: 2.0,
+  IDR: 4.7, PHP: 3.6, VND: 4.5, TRY: 24, PLN: 2.8, CLP: 3.6, SAR: 2.0,
 };
 const CUR_NAMES = {
   USD: 'US dollar', EUR: 'Euro', GBP: 'British pound', CHF: 'Swiss franc', SEK: 'Swedish krona', INR: 'Indian rupee',
   AUD: 'Australian dollar', TWD: 'Taiwan dollar', JPY: 'Japanese yen', CAD: 'Canadian dollar', SGD: 'Singapore dollar',
   NOK: 'Norwegian krone', DKK: 'Danish krone', CNY: 'Chinese yuan', HKD: 'Hong Kong dollar', KRW: 'South Korean won',
   NZD: 'New Zealand dollar', ZAR: 'South African rand', MXN: 'Mexican peso', BRL: 'Brazilian real', THB: 'Thai baht', MYR: 'Malaysian ringgit',
+  IDR: 'Indonesian rupiah', PHP: 'Philippine peso', VND: 'Vietnamese dong', TRY: 'Turkish lira', PLN: 'Polish zloty',
+  CLP: 'Chilean peso', SAR: 'Saudi riyal',
 };
 const GROUPS = [
-  ['metals', 'Metals'], ['crypto', 'Crypto'], ['americas', 'Americas'], ['europe', 'Europe'], ['asia', 'Asia-Pacific'], ['global', 'Global'], ['custom', 'Your picks'],
+  ['metals', 'Metals'], ['crypto', 'Crypto'], ['americas', 'Americas'], ['emerging', 'Emerging markets'], ['europe', 'Europe'], ['asia', 'Asia-Pacific'], ['global', 'Global'], ['custom', 'Your picks'],
 ];
 const PRESETS = {
   majors: ['spx', 'nasdaq', 'europe', 'japan', 'china', 'world', 'gold', 'silver', 'btc'],
   hard: ['gold', 'silver', 'btc'],
+  emerging: ['india', 'brazil', 'indonesia', 'malaysia', 'thailand', 'philippines', 'vietnam', 'mexico', 'turkey', 'safrica', 'gold'],
 };
 const FIXED_COLOR = { gold: 'var(--c-gold)', silver: 'var(--c-silver)', btc: 'var(--c-btc)' };
 const METRICS = [
@@ -68,7 +72,7 @@ const clampNum = (v, lo, hi, d) => { const n = parseFloat(v); return Number.isFi
 function loadCustom() { try { return JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); } catch { return []; } }
 function saveCustom(list) { try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)); } catch { /* blocked */ } }
 function buildAssets() {
-  ASSETS = DATA.assets.map((a) => ({ ...a }));
+  ASSETS = DATA.assets.map((a) => ({ ...a, px: a.px?.length ? a.px : null }));
   for (const c of loadCustom()) {
     ASSETS.push({ id: c.id, name: c.name, short: c.name, ticker: 'your data', group: 'custom', flag: 'custom', note: 'Prices you pasted', prices: c.prices, custom: true });
   }
@@ -101,6 +105,7 @@ function readState() {
     amt: clampNum(q.get('amt'), 1, 1e13, 500),
     seed: clampNum(q.get('seed'), 1, 1e9, 42) | 0,
     log: q.get('log') !== '0',
+    div: q.get('div') !== '0',
     metric: METRICS.some((m) => m.id === q.get('view')) ? q.get('view') : 'value',
   };
   st.infl = q.get('infl') != null ? clampNum(q.get('infl'), -20, 200, 2.5) : INFL_DEFAULT[st.cur] ?? 2.5;
@@ -119,6 +124,7 @@ function writeState() {
   q.set('assets', [...state.assets].join(','));
   if (state.metric !== 'value') q.set('view', state.metric);
   if (!state.log) q.set('log', '0');
+  if (!state.div) q.set('div', '0');
   history.replaceState(null, '', `?${q}${location.hash}`);
 }
 
@@ -157,6 +163,7 @@ function initControls() {
     run();
   });
   $('metricSeg').addEventListener('change', (e) => { state.metric = e.target.value; writeState(); renderChart(); });
+  $('divS').addEventListener('change', (e) => { state.div = e.target.checked; run(); });
   $('logS').addEventListener('change', (e) => { state.log = e.target.checked; writeState(); renderChart(); });
   document.querySelector('.legend-tools').addEventListener('click', (e) => {
     const b = e.target.closest('[data-show]'); if (!b || !lastRun) return;
@@ -228,6 +235,10 @@ function syncControls() {
   $('infl').value = state.infl; $('inflField').hidden = state.cur === 'USD';
   document.querySelectorAll('input[name=mode]').forEach((el) => { el.checked = el.value === state.mode; });
   document.querySelectorAll('input[name=metric]').forEach((el) => { el.checked = el.value === state.metric; });
+  $('divS').checked = state.div;
+  $('divHint').textContent = state.div
+    ? 'Dividends are put straight back in (total return). Gold, silver and Bitcoin pay none.'
+    : 'Price changes only. Dividends paid out are ignored, so stocks look weaker than they really were.';
   $('freq').value = state.p; $('freqV').textContent = `${state.p}%`;
   $('minA').value = state.lo; $('maxA').value = state.hi; $('amt').value = state.amt;
   $('amtLabel').textContent = state.mode === 'lump' ? 'Amount invested once' : 'Amount each month';
@@ -302,7 +313,7 @@ function config() {
     s, e, late, sel, fx, cols,
     sch: { s, e, mode: state.mode, p: state.p / 100, lo, hi, amt: state.amt },
     cpi: cpiIndex(M, state.cur, DATA.cpiUS, state.infl),
-    assets: sel.map((a) => ({ id: a.id, local: localPrices(a.prices, fx) })),
+    assets: sel.map((a) => ({ id: a.id, local: localPrices(state.div || !a.px ? a.prices : a.px, fx) })),
   };
 }
 
@@ -357,7 +368,7 @@ function renderVerdict(R) {
   const beat = R.order.filter((a) => R.a[a.id].fv > R.inflNeeded).length;
   const btcNote = best.id === 'btc' && M[cfg.s] < '2013-01' ? ' Early Bitcoin prices come from tiny exchanges, so treat that as an upper bound.' : '';
   $('verdict').innerHTML = `<h1 class="v-head">${head}</h1>
-    <p class="v-sub">${beat} of ${R.order.length} beat inflation.${btcNote} Values at the end of ${lab(cfg.e)}, in ${CUR_NAMES[state.cur] || state.cur}${state.cur === 'USD' ? 's' : ''}.</p>
+    <p class="v-sub">${beat} of ${R.order.length} beat inflation.${btcNote} Values at the end of ${lab(cfg.e)}, in ${CUR_NAMES[state.cur] || state.cur}${state.cur === 'USD' ? 's' : ''}, dividends ${state.div ? 'reinvested' : 'not counted'}.</p>
     <div class="tiles">${tiles.join('')}</div>`;
 }
 

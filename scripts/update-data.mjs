@@ -15,6 +15,9 @@
  * existing file and rescaled so the series joins smoothly. The file only extends to the last month
  * for which every asset has a price, so nothing is invented.
  *
+ * Each asset keeps two series: `prices` (dividend-adjusted, i.e. dividends reinvested) and `px`
+ * (plain closes, dividends ignored). The app lets the user choose between them.
+ *
  * To add an asset: append an entry to `assets` in prices.json with id, name, short, ticker, group,
  * flag and note, plus "prices": []. The next run fills it in.
  */
@@ -45,12 +48,13 @@ export function lastCompleteMonth(now = new Date()) {
 }
 
 /** Parse a Yahoo chart API response into { 'YYYY-MM': close } for completed months. */
-export function parseYahooMonthly(json, lastMonth) {
+export function parseYahooMonthly(json, lastMonth, field = 'adj') {
   const r = json?.chart?.result?.[0];
   if (!r || !r.timestamp) return {};
   const adj = r.indicators?.adjclose?.[0]?.adjclose;
   const close = r.indicators?.quote?.[0]?.close;
-  const vals = adj && adj.some((v) => v != null) ? adj : close;
+  const vals = field === 'close' ? (close && close.some((v) => v != null) ? close : adj)
+    : adj && adj.some((v) => v != null) ? adj : close;
   const out = {};
   r.timestamp.forEach((ts, i) => {
     const v = vals?.[i];
@@ -64,6 +68,7 @@ export function parseYahooMonthly(json, lastMonth) {
   return out;
 }
 
+/** Download one symbol. Returns { tr, px }: dividend-adjusted and plain month-end closes. */
 export async function fetchYahoo(symbol, lastMonth, fetchImpl = fetch) {
   const p1 = Math.floor(Date.UTC(2009, 10, 1) / 1000);
   const p2 = Math.floor(Date.now() / 1000);
@@ -72,13 +77,14 @@ export async function fetchYahoo(symbol, lastMonth, fetchImpl = fetch) {
     try {
       const res = await fetchImpl(url, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return parseYahooMonthly(await res.json(), lastMonth);
+      const json = await res.json();
+      return { tr: parseYahooMonthly(json, lastMonth), px: parseYahooMonthly(json, lastMonth, 'close') };
     } catch (e) {
       if (attempt === 3) throw new Error(`${symbol}: ${e.message}`);
       await new Promise((r) => setTimeout(r, 1500 * attempt));
     }
   }
-  return {};
+  return { tr: {}, px: {} };
 }
 
 /** Prefer new values; fill months before the new series from the old one, rescaled at the first overlap. */
@@ -124,19 +130,23 @@ export async function update(data, { fetchImpl = fetch, now = new Date(), log = 
   const fresh = {};
   for (const a of data.assets) {
     try { fresh[a.id] = await fetchYahoo(a.ticker, target, fetchImpl); }
-    catch (e) { failures.push(e.message); fresh[a.id] = {}; }
+    catch (e) { failures.push(e.message); fresh[a.id] = { tr: {}, px: {} }; }
   }
   const fxFresh = {};
   for (const c of Object.keys(data.fx)) {
-    try { fxFresh[c] = await fetchYahoo(`${c}=X`, target, fetchImpl); }
+    try { fxFresh[c] = (await fetchYahoo(`${c}=X`, target, fetchImpl)).tr; }
     catch (e) { failures.push(e.message); fxFresh[c] = {}; }
   }
+  const fxAll = Object.fromEntries(Object.keys(data.fx).map((c) => [c, ffill(splice(data.fx[c], data.months, fxFresh[c], allMonths))]));
 
   // Splice every asset over the full target range, then cut at the last month all assets share.
-  const spliced = Object.fromEntries(data.assets.map((a) => [a.id, splice(a.prices, data.months, fresh[a.id], allMonths)]));
+  const spliced = Object.fromEntries(data.assets.map((a) => [a.id, {
+    prices: splice(a.prices, data.months, fresh[a.id].tr, allMonths),
+    px: splice(a.px?.some((v) => v != null) ? a.px : a.prices, data.months, fresh[a.id].px, allMonths),
+  }]));
   let endIdx = allMonths.length - 1;
   for (const a of data.assets) {
-    const p = spliced[a.id];
+    const p = spliced[a.id].prices;
     let last = p.length - 1;
     while (last >= 0 && p[last] == null) last--;
     endIdx = Math.min(endIdx, last);
@@ -145,11 +155,12 @@ export async function update(data, { fetchImpl = fetch, now = new Date(), log = 
   if (months.length < data.months.length) throw new Error(`Refusing to shrink data: new end ${months.at(-1)} is before ${data.end}`);
 
   const assets = data.assets.map((a) => {
-    const prices = spliced[a.id].slice(0, months.length);
+    const prices = spliced[a.id].prices.slice(0, months.length);
+    const px = spliced[a.id].px.slice(0, months.length);
     const fi = prices.findIndex((v) => v != null);
-    return { ...a, first: months[fi], prices };
+    return { ...a, first: months[fi], prices, px };
   });
-  const fx = Object.fromEntries(Object.keys(data.fx).map((c) => [c, ffill(splice(data.fx[c], data.months, fxFresh[c], months))]));
+  const fx = Object.fromEntries(Object.keys(fxAll).map((c) => [c, fxAll[c].slice(0, months.length)]));
 
   let cpiUS = data.cpiUS;
   try {
@@ -170,6 +181,11 @@ export async function update(data, { fetchImpl = fetch, now = new Date(), log = 
       ...data,
       updated: now.toISOString().slice(0, 10),
       start: months[0], end: months.at(-1), months, assets, fx, cpiUS,
+      sources: [
+        'Yahoo Finance (month-end prices of US-listed ETFs, Bitcoin and exchange rates)',
+        'Coin Metrics (Bitcoin before Sep 2014)',
+        'US BLS CPI-U via github.com/datasets/cpi-us',
+      ],
       fxNote: 'Units of currency per 1 USD. Month-end closes from Yahoo Finance where available; older months may be Federal Reserve monthly averages.',
     },
   };

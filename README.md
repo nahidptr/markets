@@ -69,7 +69,7 @@ Cloudflare Pages, Netlify and GitHub Pages also work: build command `npm run bui
 
 | | |
 |---|---|
-| Prices | Month-end, dividend-adjusted closes of US-listed ETFs (fees already deducted). Bitcoin is the spot price. |
+| Prices | Month-end closes of US-listed ETFs (fees already deducted). Dividend-adjusted (reinvested) by default; a toggle switches to plain price changes. Bitcoin is the spot price. |
 | Purchase price | Interpolated geometrically between the previous and current month-end at the purchase day. |
 | Returns | Money-weighted annual return (XIRR) on the actual cash flows. |
 | After inflation | Each purchase restated in end-date money with CPI, then XIRR again. USD uses US CPI-U; other currencies use an editable yearly rate (approximate 2010–2025 averages). |
@@ -77,7 +77,7 @@ Cloudflare Pages, Netlify and GitHub Pages also work: build command `npm run bui
 
 Country ETFs track their markets closely but are not the exact local index (e.g. EWJ ≈ Nikkei/TOPIX, EWG ≈ DAX, EWU ≈ FTSE 100, FXI = FTSE China 50). Bitcoin prices before 2013 come from tiny exchanges; treat early-start Bitcoin results as an upper bound.
 
-**Data sources.** Initial history: digrin.com price histories, Coin Metrics (Bitcoin), US Federal Reserve H.10 exchange rates (via github.com/datasets/exchange-rates), US BLS CPI-U (via github.com/datasets/cpi-us). Monthly updates: Yahoo Finance chart API and the same CPI dataset.
+**Data sources.** Yahoo Finance chart API (ETF prices with and without dividends, Bitcoin, exchange rates), Coin Metrics (Bitcoin before Sep 2014), US BLS CPI-U (via github.com/datasets/cpi-us).
 
 ## Disclaimer
 

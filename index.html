@@ -74,6 +74,8 @@
             <label><input type="radio" name="mode" value="lump"><span>Lump sum</span></label>
           </div>
           <p class="hint" id="modeHint"></p>
+          <label class="check"><input id="divS" type="checkbox"> Reinvest dividends</label>
+          <p class="hint" id="divHint"></p>
           <div class="field m-random">
             <label for="freq">Chance of buying in a month <output id="freqV" for="freq">60%</output></label>
             <input id="freq" type="range" min="10" max="100" step="5" value="60">
@@ -100,6 +102,7 @@
           <div class="presets" id="assetPresets" role="group" aria-label="Asset presets">
             <button type="button" class="pill" data-preset="majors">Majors</button>
             <button type="button" class="pill" data-preset="hard">Gold, silver, Bitcoin</button>
+            <button type="button" class="pill" data-preset="emerging">Emerging</button>
             <button type="button" class="pill" data-preset="all">All</button>
             <button type="button" class="pill" data-preset="none">None</button>
           </div>
@@ -176,7 +179,7 @@
       <section class="card tab-pane about" data-pane="about">
         <header class="card-h"><h2>How it works</h2></header>
         <ul>
-          <li><b>Prices</b> are month-end, dividend-adjusted (total return) prices of US-listed ETFs an ordinary investor could buy, so dividends are reinvested and fund fees are already taken out. Bitcoin is the spot price.</li>
+          <li><b>Prices</b> are month-end prices of US-listed ETFs an ordinary investor could buy, with fund fees already taken out. By default dividends are reinvested (total return); switch <i>Reinvest dividends</i> off to count price changes only. Gold, silver and Bitcoin pay no dividends, so they do not change.</li>
           <li><b>Same money everywhere.</b> Each purchase goes into every asset on the same day and for the same amount. Random purchases land on a random day; the price is interpolated between month-ends. Monthly buys happen mid-month; a lump sum buys at the start of the first month.</li>
           <li><b>Inflation.</b> "After inflation" restates every purchase in end-date money and recomputes the annual return. "Keeping up with inflation" is what your cash needed to grow to just to keep its buying power.</li>
           <li><b>Your currency.</b> US-dollar prices are converted at each month's exchange rate, so a non-US investor also sees currency moves.</li>

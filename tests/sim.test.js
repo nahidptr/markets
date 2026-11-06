@@ -107,6 +107,9 @@ test('bundled data file is consistent', () => {
   for (const a of d.assets) {
     assert.ok(!ids.has(a.id), `duplicate ${a.id}`); ids.add(a.id);
     assert.equal(a.prices.length, n, a.id);
+    assert.equal(a.px.length, n, `${a.id} px`);
+    // price-only never beats total return, and both are 1:1 at the end for non-dividend assets
+    assert.ok(a.px.at(-1) / a.px.find((v) => v != null) <= a.prices.at(-1) / a.prices.find((v) => v != null) * 1.001, `${a.id} px vs total return`);
     const first = a.prices.findIndex((p) => p != null);
     assert.ok(first >= 0, a.id);
     for (let i = first + 1; i < n; i++) {

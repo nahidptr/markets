@@ -13,6 +13,7 @@ test('parseYahooMonthly uses adjclose and drops the running month', () => {
   const ts = [Date.UTC(2026, 7, 1), Date.UTC(2026, 8, 1), Date.UTC(2026, 9, 1)].map((t) => t / 1000 - 4 * 3600);
   const json = { chart: { result: [{ timestamp: ts, indicators: { quote: [{ close: [1, 2, 3] }], adjclose: [{ adjclose: [10, null, 30] }] } }] } };
   assert.deepEqual(parseYahooMonthly(json, '2026-09'), { '2026-08': 10 });
+  assert.deepEqual(parseYahooMonthly(json, '2026-09', 'close'), { '2026-08': 1, '2026-09': 2 });
 });
 
 test('splice rescales old history onto the new series', () => {
